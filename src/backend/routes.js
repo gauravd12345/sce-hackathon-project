@@ -13,29 +13,40 @@ app.get("/", (req, res) => {
   res.send("Server is running");
 });
 
-app.get("/search", async (req, res) => {
-    try {
-        const query = req.query.q || "fastapi docker"; // ?q=term in the URL
-        const result = await octokit.rest.search.repos({
-        q: query,
-        sort: "stars",
-        order: "desc",
-        per_page: 3,
-        });
 
-        // send JSON back
-        res.json(
-        result.data.items.map(repo => ({
-            name: repo.full_name,
-            stars: repo.stargazers_count,
-            url: repo.html_url,
-        }))
-        );
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Something went wrong" });
-    }
+app.get("/search", async (req, res) => {
+  try {
+    const q = (req.query.q || "").trim();
+    if (!q) return res.json([]);
+
+    const result = await octokit.rest.search.repos({
+      q,
+      sort: "stars",
+      order: "desc",
+      per_page: 9,
+      headers: { accept: "application/vnd.github.mercy-preview+json" }, // includes topics[]
+    });
+
+    const data = result.data.items.map(r => ({
+      id: r.id,
+      name: r.name,                   
+      full_name: r.full_name,         
+      description: r.description || "No description",
+      html_url: r.html_url,          
+      stargazers_count: r.stargazers_count,
+      language: r.language || "Unknown",
+      topics: Array.isArray(r.topics) ? r.topics : [], 
+    }));
+
+    res.json(data);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "GitHub API failed" });
+  }
 });
+
+
+
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
