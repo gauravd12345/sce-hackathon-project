@@ -1,39 +1,17 @@
 import { useState } from 'react'
 import './App.css'
 
-// Mock data for demonstration
-const mockRepositories = [
-  {
-    id: 1,
-    name: "axios",
-    full_name: "axios/axios",
-    description: "Promise based HTTP client for the browser and node.js",
-    html_url: "https://github.com/axios/axios",
-    stargazers_count: 103000,
-    language: "JavaScript",
-    topics: ["http", "promise", "request", "ajax", "api"]
-  },
-  {
-    id: 2,
-    name: "react",
-    full_name: "facebook/react",
-    description: "A declarative, efficient, and flexible JavaScript library for building user interfaces.",
-    html_url: "https://github.com/facebook/react",
-    stargazers_count: 220000,
-    language: "JavaScript",
-    topics: ["react", "javascript", "ui", "frontend", "declarative"]
-  },
-  {
-    id: 3,
-    name: "express",
-    full_name: "expressjs/express",
-    description: "Fast, unopinionated, minimalist web framework for Node.js",
-    html_url: "https://github.com/expressjs/express",
-    stargazers_count: 65000,
-    language: "JavaScript",
-    topics: ["express", "framework", "web", "server", "node"]
-  }
-]
+  // put this helper above your component or inside it
+  const normalizeRepo = (r) => ({
+    id: r.id,
+    name: r.name,
+    full_name: r.full_name,
+    description: r.description || "No description",
+    html_url: r.html_url,
+    stargazers_count: Number(r.stargazers_count ?? 0),
+    language: r.language || "Unknown",
+    topics: Array.isArray(r.topics) ? r.topics : [],
+  });
 
 function App() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -41,19 +19,33 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
 
-  const handleSearch = async (e) => {
-    e.preventDefault()
-    if (!searchQuery.trim()) return
+const handleSearch = async (e) => {
+  e.preventDefault();
+  const q = searchQuery.trim();
+  if (!q) return;
 
-    setLoading(true)
-    setHasSearched(true)
-    
-    // Simulate API call delay
-    setTimeout(() => {
-      setRepositories(mockRepositories)
-      setLoading(false)
-    }, 1500)
+  setLoading(true);
+  setHasSearched(true);
+
+  try {
+    // If you use a Vite proxy, keep /api/search. If you use CORS, use http://localhost:3000/search
+    const res = await fetch(`/search?q=${encodeURIComponent(q)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    // normalize incoming JSON to your mock shape
+    const normalized = (Array.isArray(data) ? data : []).map(normalizeRepo);
+    setRepositories(normalized);   // ← this updates what your cards render
+    console.log("Fetched repos:", normalized);
+  } catch (err) {
+    console.error("Fetch error:", err);
+    setRepositories([]);           // show empty state on error
+  } finally {
+    setLoading(false);
   }
+};
+
+
 
   const handleExampleClick = (example) => {
     setSearchQuery(example)
