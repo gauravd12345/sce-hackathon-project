@@ -1,16 +1,18 @@
 import { useState } from 'react'
 import './App.css'
-  // put this helper above your component or inside it
-  const normalizeRepo = (r) => ({
-    id: r.id,
-    name: r.name,
-    full_name: r.full_name,
-    description: r.description || "No description",
-    html_url: r.html_url,
-    stargazers_count: Number(r.stargazers_count ?? 0),
-    language: r.language || "Unknown",
-    topics: Array.isArray(r.topics) ? r.topics : [],
-  });
+
+
+const normalizeRepo = (r) => ({
+  id: r.id ?? r.full_name ?? r.name,
+  name: r.name?.split("/")?.pop() ?? r.name,
+  full_name: r.full_name ?? r.name ?? "",
+  description: r.description || "No description",
+  html_url: r.html_url ?? r.url ?? "#",
+  stargazers_count: Number(r.stargazers_count ?? r.stars ?? r.watchers_count ?? 0),
+  language: r.language || "Unknown",
+  topics: Array.isArray(r.topics) ? r.topics : [],
+});
+
 
 function App() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -21,32 +23,26 @@ function App() {
   const [currentStep, setCurrentStep] = useState('') // Track current processing step
   const [generatedKeywords, setGeneratedKeywords] = useState('') // Store keywords from Gemini
 
-const handleSearch = async (e) => {
-  e.preventDefault();
-  const q = searchQuery.trim();
-  if (!q) return;
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    if (!q) return;
 
-  setLoading(true);
-  setHasSearched(true);
+    setLoading(true);
+    setHasSearched(true);
 
-  try {
-    // If you use a Vite proxy, keep /api/search. If you use CORS, use http://localhost:3000/search
-    const res = await fetch(`/search?q=${encodeURIComponent(q)}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-
-    // normalize incoming JSON to your mock shape
-    const normalized = (Array.isArray(data) ? data : []).map(normalizeRepo);
-    setRepositories(normalized);   // ← this updates what your cards render
-    console.log("Fetched repos:", normalized);
-  } catch (err) {
-    console.error("Fetch error:", err);
-    setRepositories([]);           // show empty state on error
-  } finally {
-    setLoading(false);
-  }
-};
-
+    try {
+      const resp = await fetch(`/search?q=${encodeURIComponent(q)}`); // or /api/search if proxied
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const raw = await resp.json();
+      setRepositories((Array.isArray(raw) ? raw : []).map(normalizeRepo));
+    } catch (err) {
+      console.error(err);
+      setRepositories([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
   const handleExampleClick = (example) => {
