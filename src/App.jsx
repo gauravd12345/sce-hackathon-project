@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import './App.css'
-
   // put this helper above your component or inside it
   const normalizeRepo = (r) => ({
     id: r.id,
