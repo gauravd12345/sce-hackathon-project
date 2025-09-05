@@ -1,18 +1,92 @@
 import { useState } from 'react'
 import './App.css'
 
+// API configuration
+const GITHUB_API_BASE = 'https://api.github.com'
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 
-const normalizeRepo = (r) => ({
-  id: r.id ?? r.full_name ?? r.name,
-  name: r.name?.split("/")?.pop() ?? r.name,
-  full_name: r.full_name ?? r.name ?? "",
-  description: r.description || "No description",
-  html_url: r.html_url ?? r.url ?? "#",
-  stargazers_count: Number(r.stargazers_count ?? r.stars ?? r.watchers_count ?? 0),
-  language: r.language || "Unknown",
-  topics: Array.isArray(r.topics) ? r.topics : [],
-});
+// Helper function to get keywords from Gemini API
+const getKeywordsFromGemini = async (userQuery) => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY
+  
+  console.log('Gemini API Key exists:', !!apiKey)
+  console.log('API Key length:', apiKey ? apiKey.length : 0)
+  
+  if (!apiKey || apiKey === 'your_gemini_api_key_here') {
+    throw new Error('Gemini API key not found. Please set VITE_GEMINI_API_KEY in your environment variables.')
+  }
+  
+  const prompt = `Given this user query: "${userQuery}"
 
+Please provide 3-5 relevant keywords or search terms that would be useful for finding GitHub repositories related to the user query. Focus on:
+- Programming languages
+- Technologies
+- Frameworks
+- Libraries
+- Tools
+- Concepts
+- Clones of existing companies and products 
+- Limit responses to english only 
+
+
+Return only the keywords separated by spaces, no explanations or additional text.`
+
+  // Create a timeout promise
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Gemini API timeout after 10 seconds')), 10000)
+  })
+
+  const fetchPromise = fetch(`${GEMINI_API_BASE}/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{
+          text: prompt
+        }]
+      }]
+    })
+  })
+
+  const response = await Promise.race([fetchPromise, timeoutPromise])
+  
+  if (!response.ok) {
+    throw new Error(`Gemini API error: ${response.status} ${response.statusText}`)
+  }
+  
+  const data = await response.json()
+  console.log('Gemini API response:', data)
+  
+  if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts) {
+    throw new Error('Invalid response from Gemini API')
+  }
+  
+  const keywords = data.candidates[0].content.parts[0].text.trim()
+  console.log('Extracted keywords:', keywords)
+  return keywords
+}
+
+// Helper function to search GitHub repositories
+const searchGitHubRepositories = async (keywords) => {
+  const url = `${GITHUB_API_BASE}/search/repositories?q=${encodeURIComponent(keywords)}&sort=stars&order=desc&per_page=30`
+  
+  const response = await fetch(url, {
+    headers: {
+      'Accept': 'application/vnd.github.v3+json',
+      // Add Authorization header if you have a GitHub token
+      // 'Authorization': `token ${process.env.REACT_APP_GITHUB_TOKEN}`
+    }
+  })
+  
+  if (!response.ok) {
+    throw new Error(`GitHub API error: ${response.status} ${response.statusText}`)
+  }
+  
+  const data = await response.json()
+  return data.items
+}
 
 function App() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -24,25 +98,39 @@ function App() {
   const [generatedKeywords, setGeneratedKeywords] = useState('') // Store keywords from Gemini
 
   const handleSearch = async (e) => {
-    e.preventDefault();
-    const q = searchQuery.trim();
-    if (!q) return;
+    e.preventDefault()
+    if (!searchQuery.trim() || loading) return // Prevent multiple searches
 
-    setLoading(true);
-    setHasSearched(true);
-
+    setLoading(true)
+    setHasSearched(true)
+    setError(null)
+    setRepositories([])
+    setGeneratedKeywords('')
+    
     try {
-      const resp = await fetch(`/search?q=${encodeURIComponent(q)}`); // or /api/search if proxied
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const raw = await resp.json();
-      setRepositories((Array.isArray(raw) ? raw : []).map(normalizeRepo));
+      // Step 1: Get keywords from Gemini API
+      setCurrentStep('Processing your query with AI...')
+      console.log('Starting Gemini API call with query:', searchQuery)
+      const keywords = await getKeywordsFromGemini(searchQuery)
+      console.log('Gemini returned keywords:', keywords)
+      setGeneratedKeywords(keywords)
+      
+      // Step 2: Search GitHub with the generated keywords
+      setCurrentStep('Searching GitHub repositories...')
+      console.log('Starting GitHub API call with keywords:', keywords)
+      const results = await searchGitHubRepositories(keywords)
+      console.log('GitHub returned results:', results)
+      setRepositories(results)
+      
+      setCurrentStep('')
     } catch (err) {
-      console.error(err);
-      setRepositories([]);
+      console.error('Search error details:', err)
+      setError(`Search failed: ${err.message}`)
+      setCurrentStep('')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
 
   const handleExampleClick = (example) => {
@@ -84,7 +172,7 @@ function App() {
               <button
                 type="submit"
                 disabled={loading}
-                className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105"
+                className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 disabled:transform-none"
               >
                 {loading ? 'Searching...' : 'Search'}
               </button>
@@ -99,7 +187,8 @@ function App() {
                 <button
                   key={index}
                   onClick={() => handleExampleClick(example)}
-                  className="px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 hover:text-white transition-colors text-sm"
+                  disabled={loading}
+                  className="px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 hover:text-white transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {example}
                 </button>
@@ -108,17 +197,136 @@ function App() {
           </div>
         </div>
 
-        {/* Loading State */}
+        {/* AI Processing Status */}
         {loading && (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-            <p className="text-gray-400 mt-4">{currentStep}</p>
-            {generatedKeywords && (
-              <div className="mt-4 p-4 bg-gray-800 rounded-lg border border-gray-700 max-w-2xl mx-auto">
-                <p className="text-sm text-gray-400 mb-2">AI-generated search keywords:</p>
-                <p className="text-blue-400 font-medium">{generatedKeywords}</p>
+          <div className="max-w-4xl mx-auto py-12">
+            <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 rounded-2xl p-8 border border-blue-500/30">
+              {/* AI Processing Header */}
+              <div className="text-center mb-8">
+                <h3 className="text-2xl font-bold text-white mb-2">AI Agent Processing</h3>
+                <p className="text-gray-300">Your query is being analyzed</p>
               </div>
-            )}
+
+              {/* Processing Steps */}
+              <div className="space-y-6">
+                {/* Step 1: Gemini Processing */}
+                <div className={`flex items-center space-x-4 p-4 rounded-xl transition-all duration-500 ${
+                  currentStep === 'Processing your query with AI...' 
+                    ? 'bg-blue-500/20 border border-blue-400/50' 
+                    : generatedKeywords 
+                      ? 'bg-green-500/20 border border-green-400/50' 
+                      : 'bg-gray-800/50 border border-gray-600/50'
+                }`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                    currentStep === 'Processing your query with AI...' 
+                      ? 'bg-blue-500 text-white animate-pulse' 
+                      : generatedKeywords 
+                        ? 'bg-green-500 text-white' 
+                        : 'bg-gray-600 text-gray-300'
+                  }`}>
+                    {currentStep === 'Processing your query with AI...' ? '⟳' : generatedKeywords ? '✓' : '1'}
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-white font-semibold">Natural Language Processing</h4>
+                    <p className="text-gray-400 text-sm">
+                      {currentStep === 'Processing your query with AI...' 
+                        ? 'Gemini AI is analyzing your query and extracting relevant keywords...'
+                        : generatedKeywords 
+                          ? 'Successfully generated search keywords'
+                          : 'Waiting to process your query...'
+                      }
+                    </p>
+                  </div>
+                  {currentStep === 'Processing your query with AI...' && (
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Generated Keywords Display */}
+                {generatedKeywords && (
+                  <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-xl p-6 border border-purple-400/30">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <div className="text-2xl">✨</div>
+                      <h4 className="text-white font-semibold">AI-Generated Keywords</h4>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {generatedKeywords.split(' ').map((keyword, index) => (
+                        <span 
+                          key={index}
+                          className="px-3 py-1 bg-gradient-to-r from-purple-500 to-blue-500 text-white text-sm rounded-full font-medium animate-fadeIn"
+                          style={{animationDelay: `${index * 0.1}s`}}
+                        >
+                          {keyword}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 2: GitHub Search */}
+                <div className={`flex items-center space-x-4 p-4 rounded-xl transition-all duration-500 ${
+                  currentStep === 'Searching GitHub repositories...' 
+                    ? 'bg-blue-500/20 border border-blue-400/50' 
+                    : repositories.length > 0 
+                      ? 'bg-green-500/20 border border-green-400/50' 
+                      : 'bg-gray-800/50 border border-gray-600/50'
+                }`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                    currentStep === 'Searching GitHub repositories...' 
+                      ? 'bg-blue-500 text-white animate-pulse' 
+                      : repositories.length > 0 
+                        ? 'bg-green-500 text-white' 
+                        : 'bg-gray-600 text-gray-300'
+                  }`}>
+                    {currentStep === 'Searching GitHub repositories...' ? '⟳' : repositories.length > 0 ? '✓' : '2'}
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-white font-semibold">GitHub Repository Search</h4>
+                    <p className="text-gray-400 text-sm">
+                      {currentStep === 'Searching GitHub repositories...' 
+                        ? 'Searching GitHub for repositories matching the AI-generated keywords...'
+                        : repositories.length > 0 
+                          ? `Found ${repositories.length} relevant repositories`
+                          : 'Waiting for keyword generation...'
+                      }
+                    </p>
+                  </div>
+                  {currentStep === 'Searching GitHub repositories...' && (
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="mt-8">
+                <div className="flex justify-between text-sm text-gray-400 mb-2">
+                  <span>Progress</span>
+                  <span>
+                    {currentStep === 'Processing your query with AI...' ? '25%' : 
+                     currentStep === 'Searching GitHub repositories...' ? '75%' : 
+                     repositories.length > 0 ? '100%' : '0%'}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-700 rounded-full h-2">
+                  <div 
+                    className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-1000 ease-out"
+                    style={{
+                      width: currentStep === 'Processing your query with AI...' ? '25%' : 
+                             currentStep === 'Searching GitHub repositories...' ? '75%' : 
+                             repositories.length > 0 ? '100%' : '0%'
+                    }}
+                  ></div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
