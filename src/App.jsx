@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 
-// Helper function to search repositories via backend API (includes AI processing)
+
 const searchRepositoriesViaBackend = async (userQuery, retryCount = 0) => {
   const maxRetries = 2
   const url = `http://localhost:3000/search?q=${encodeURIComponent(userQuery)}`
@@ -49,13 +49,13 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const [error, setError] = useState(null)
-  const [currentStep, setCurrentStep] = useState('') // Track current processing step
-  const [generatedKeywords, setGeneratedKeywords] = useState('') // Store keywords from Gemini
-  const [retryInfo, setRetryInfo] = useState('') // Track retry information
+  const [currentStep, setCurrentStep] = useState('') 
+  const [generatedKeywords, setGeneratedKeywords] = useState('')
+  const [retryInfo, setRetryInfo] = useState('') 
 
   const handleSearch = async (e) => {
     e.preventDefault()
-    if (!searchQuery.trim() || loading) return // Prevent multiple searches
+    if (!searchQuery.trim() || loading) return 
 
     setLoading(true)
     setHasSearched(true)
@@ -65,7 +65,7 @@ function App() {
     setRetryInfo('')
     
     try {
-      // Single backend call that handles both AI processing and GitHub search
+      
       setCurrentStep('Processing your query with AI and searching repositories...')
       setRetryInfo('')
       console.log('Starting backend API call with query:', searchQuery)
@@ -73,9 +73,9 @@ function App() {
       const data = await searchRepositoriesViaBackend(searchQuery)
       console.log('Backend returned data:', data)
       
-      // Set the results and keywords from backend response
+      
       setRepositories(data.repositories)
-      setGeneratedKeywords(data.isFallback ? `Fallback: ${data.originalQuery}` : data.keywords)
+      setGeneratedKeywords(data.isFallback ? `${data.originalQuery}` : data.keywords)
       
       setCurrentStep('')
       setRetryInfo('')
@@ -107,7 +107,7 @@ function App() {
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-white mb-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-            GitHub Agent
+            GitMap
           </h1>
           <p className="text-xl text-gray-300 max-w-2xl mx-auto mb-8">
             Discover the perfect GitHub repositories for your project. Ask for any tool, library, or solution you need!

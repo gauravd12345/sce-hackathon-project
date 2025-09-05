@@ -37,7 +37,7 @@ Please provide 3-5 relevant keywords or search terms that would be useful for fi
 Return only the keywords separated by spaces, no explanations or additional text.`
 
   try {
-    // Create a timeout promise with shorter timeout
+   
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Gemini API timeout after 8 seconds')), 8000)
     })
@@ -104,25 +104,25 @@ app.get("/", (req, res) => {
 
 app.get("/search", async (req, res) => {
     try {
-        const userQuery = req.query.q || "fastapi docker"; // ?q=term in the URL
+        const userQuery = req.query.q || "fastapi docker"; 
         console.log('Backend received search query:', userQuery);
         
         let keywords;
         let isFallback = false;
         
-        // Step 1: Try to get keywords from Gemini API
+       
         try {
             console.log('Attempting Gemini API call...');
             keywords = await getKeywordsFromGemini(userQuery);
             console.log('Gemini returned keywords:', keywords);
         } catch (geminiError) {
             console.warn('Gemini API failed, using fallback:', geminiError.message);
-            // Fallback: Use the original search query as keywords
+            
             keywords = userQuery;
             isFallback = true;
         }
         
-        // Step 2: Search GitHub with the keywords
+      
         console.log('Searching GitHub with keywords:', keywords);
         const result = await octokit.rest.search.repos({
             q: keywords,
@@ -131,7 +131,7 @@ app.get("/search", async (req, res) => {
             per_page: 30,
         });
 
-        // Transform and send JSON back
+  
         const repositories = result.data.items.map(repo => ({
             id: repo.id,
             name: repo.name,
