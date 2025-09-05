@@ -89,6 +89,7 @@ function App() {
     }
   }
 
+
   const handleExampleClick = (example) => {
     setSearchQuery(example)
   }

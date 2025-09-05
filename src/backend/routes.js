@@ -102,6 +102,7 @@ app.get("/", (req, res) => {
   res.send("Server is running");
 });
 
+
 app.get("/search", async (req, res) => {
     try {
         const userQuery = req.query.q || "fastapi docker"; 
@@ -158,6 +159,9 @@ app.get("/search", async (req, res) => {
         });
     }
 });
+
+
+
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
