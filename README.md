@@ -1,11 +1,13 @@
 # GitMap
 
+
 ## AI-powered GitHub repository discovery.
-GitMap helps you find the right GitHub repositories with ease. It takes your natural language queries and uses Gemini AI to generate smart, relevant keywords. With those keywords, it returns a curated list of repositories that best match your needs.
+GitMap helps you find the right GitHub repositories with ease. It takes your natural language queries and uses Gemini API to generate smart, relevant keywords. With those keywords, it returns a curated list of repositories that best match your needs. Here is a demonstration: https://www.youtube.com/watch?v=yhj_f6csgkU
 
-<img width="1053" height="495" alt="image" src="https://github.com/user-attachments/assets/4412ea8f-3114-4365-b557-cc3a1c8ee9d9" />
+<img width="800" height="450" alt="image" src="https://github.com/user-attachments/assets/a1d347d6-4509-4592-8274-a0f180ddc522" />
 
-
+## Architectural Diagram
+<img width="800" height="450" alt="image" src="https://github.com/user-attachments/assets/4412ea8f-3114-4365-b557-cc3a1c8ee9d9" />
 
 ---
 
